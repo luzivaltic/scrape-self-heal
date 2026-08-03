@@ -1,0 +1,57 @@
+:root{--ink:#1b1b1a;--muted:#6b6b66;--line:#e2ded6;--bg:#faf8f4;--accent:#7a4a2b}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.55 "Iowan Old Style",Georgia,serif;color:var(--ink);background:var(--bg)}
+a{color:var(--accent)}
+.site-header{display:flex;align-items:baseline;gap:2rem;padding:1.1rem 2rem;border-bottom:1px solid var(--line);background:#fff}
+.site-logo{font-size:1.3rem;font-weight:700;text-decoration:none;letter-spacing:-.01em}
+.site-nav{display:flex;gap:1.25rem;font-size:.9rem}
+.promo-banner{padding:.6rem 2rem;background:#2f2b26;color:#f6efe4;font-size:.85rem;text-align:center}
+.breadcrumb{padding:.9rem 2rem;font-size:.82rem;color:var(--muted)}
+.crumb-sep{opacity:.5;margin:0 .2rem}
+.layout{display:flex;gap:2.5rem;padding:0 2rem 3rem;align-items:flex-start}
+.sidebar{flex:0 0 210px;padding:1.2rem;border:1px solid var(--line);background:#fff}
+.sidebar-title{margin:0 0 .7rem;font-size:.95rem;text-transform:uppercase;letter-spacing:.06em}
+.filter-list{list-style:none;margin:0;padding:0;font-size:.9rem}
+.filter-row{display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px dotted var(--line)}
+.filter-count{color:var(--muted)}
+.sidebar-note{font-size:.78rem;color:var(--muted);margin:.9rem 0 0}
+.listing{flex:1;min-width:0}
+.listing-title{margin:0;font-size:2rem;letter-spacing:-.02em}
+.result-count{margin:.2rem 0 1.4rem;color:var(--muted);font-size:.9rem}
+.product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1.5rem}
+.product-card,.listing-tile{background:#fff;border:1px solid var(--line);display:flex;flex-direction:column}
+.product-thumb{width:100%;height:auto;display:block;background:#efeae1}
+.product-body{padding:.9rem 1rem 1.1rem;display:flex;flex-direction:column;gap:.3rem}
+.product-category,.tile-cat{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.product-title,.tile-heading{margin:0;font-size:1.02rem;line-height:1.3}
+.product-title a,.tile-heading a{text-decoration:none;color:var(--ink)}
+.product-brand,.tile-maker{margin:0;font-size:.82rem;color:var(--muted)}
+.product-pricing{margin-top:.35rem}
+.price,.amount{font-size:1.15rem;font-weight:700}
+.price-was,.amount-was{margin-left:.45rem;color:var(--muted);text-decoration:line-through;font-size:.9rem}
+.product-meta{margin-top:.5rem;display:flex;flex-wrap:wrap;gap:.55rem;font-size:.78rem;color:var(--muted)}
+.stock.in-stock,.availability.in-stock,.detail-stock.in-stock{color:#2f6b3a}
+.stock.out-of-stock,.availability.out-of-stock,.detail-stock.out-of-stock{color:#9a3324}
+.pagination{margin:2.2rem 0;display:flex;align-items:center;gap:1rem;font-size:.9rem}
+.pager-next,.pager-prev{text-decoration:none}
+button.pager-next{font:inherit;font-size:.9rem;padding:.35rem .8rem;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--accent)}
+.pager-current{color:var(--muted)}
+.listing-copy{margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid var(--line);max-width:62ch;font-size:.9rem;color:#3c3a36}
+.listing-copy h2{font-size:1rem;text-transform:uppercase;letter-spacing:.06em}
+.product-detail,.static-page,.detail-header{padding:0 2rem 3rem;max-width:70ch}
+.detail-header{padding-bottom:0}
+.detail-title,.page-heading{margin:0 0 .3rem;font-size:2.1rem;letter-spacing:-.02em}
+.detail-brand{margin:0;color:var(--muted)}
+.detail-price{margin:1rem 0 .3rem}
+.detail-sku{margin:.2rem 0;font-size:.85rem;color:var(--muted)}
+.detail-description,.overview{margin:1.4rem 0}
+.overview-title{font-size:1rem;text-transform:uppercase;letter-spacing:.06em}
+.specs,.attributes{width:100%;border-collapse:collapse;font-size:.9rem;margin:1.4rem 0}
+.specs th,.specs td{border-bottom:1px solid var(--line);padding:.5rem .2rem;text-align:left}
+.specs th{width:40%;font-weight:600}
+.attributes{display:grid;grid-template-columns:40% 60%;gap:0}
+.attributes dt{font-weight:600;padding:.5rem .2rem;border-bottom:1px solid var(--line)}
+.attributes dd{margin:0;padding:.5rem .2rem;border-bottom:1px solid var(--line)}
+.detail-released{font-size:.85rem;color:var(--muted)}
+.site-footer{padding:1.6rem 2rem;border-top:1px solid var(--line);background:#fff;font-size:.85rem;color:var(--muted)}
+.footer-fine{font-size:.78rem}
