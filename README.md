@@ -73,28 +73,34 @@ missing fields, missing coverage, and one broken step.
 `detail-restructured` is exactly the union of the four `detail-*` atoms, and that is what
 makes the detail test repeatable. A heal test is **spent** once the healer fixes it:
 re-applying the same break to an already-healed workflow breaks nothing, because the
-healed spec now targets the new markup. So break one detail field per round instead:
+healed spec now targets the new markup. So break one detail field per round instead.
+
+**Accumulate the atoms — do not swap them.** `--variant` is absolute, not cumulative:
+every build renders from the baseline, so dropping an earlier atom restores its baseline
+markup and re-breaks the selector the healer just fixed. Keep each round's atoms in the
+list and add one:
 
 ```sh
-node build.mjs --variant=detail-title-moved            # round 1 → heal → activate
-node build.mjs --variant=detail-specs-dl               # round 2 → heal → activate
-node build.mjs --variant=detail-description-wrapped    # round 3
-node build.mjs --variant=detail-sku-folded             # round 4
+node build.mjs --variant=detail-title-moved                                        # round 1
+node build.mjs --variant=detail-title-moved,detail-specs-dl                        # round 2
+node build.mjs --variant=detail-title-moved,detail-specs-dl,detail-sku-folded      # round 3
+node build.mjs --variant=detail-restructured                                       # round 4 = all four
 ```
 
-Each round is a fresh, never-healed break at unchanged URLs, and the list step stays
-green throughout — asserted, not assumed (`node --test` checks every atom's list pages
-are byte-identical to the baseline's).
+Each round adds exactly one never-healed break at unchanged URLs while every previously
+healed field keeps working, and the list step stays green throughout — asserted, not
+assumed (`node --test` checks every atom's list pages are byte-identical to the
+baseline's).
 
-One caveat worth knowing before you read a round as a dud: **a single-field break may sit
-below the healer's detection threshold on purpose.** The shape autotest gates on a
-regression *ratio*, so if the detail step extracts six fields and one goes blank, the
-run can be judged healthy and no heal case opens. That is a real measurement, not a
-fixture bug — combine atoms to cross the threshold when you want a heal to fire:
+**One blank field is enough to be noticed** — a single atom is a valid round, not too
+small to register. The healer's pre-model screen is a set of independent checks, and one
+of them fires on *any* field whose fill rate was at least half and has since dropped
+below half of that. A field going from every row to no rows trips it on its own; it does
+not have to out-vote the other fields. So a round that blanks only the description is
+still expected to open a heal case naming the description.
 
-```sh
-node build.mjs --variant=detail-title-moved,detail-specs-dl,detail-sku-folded
-```
+The run still completes with all 150 records and every other field intact, which is the
+point: this is the shape of break that reports success.
 
 ## How it is built
 
