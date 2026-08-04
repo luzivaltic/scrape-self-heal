@@ -17,11 +17,28 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * The detail page's break, split into one variant per field.
+ *
+ * A heal test is spent once the healer fixes it: re-applying the same break to
+ * an already-healed workflow no longer breaks anything, because the healed spec
+ * targets the new markup. So the detail break is offered a field at a time —
+ * four narrow variants, four rounds, a fresh field each round — and
+ * `detail-restructured` remains exactly their union for the bundled case.
+ */
+export const DETAIL_ATOMS = [
+  "detail-title-moved",
+  "detail-specs-dl",
+  "detail-description-wrapped",
+  "detail-sku-folded",
+];
+
 export const VARIANTS = [
   "renamed-classes",
   "moved-fields",
   "broken-pagination",
   "detail-restructured",
+  ...DETAIL_ATOMS,
 ];
 
 export function esc(value) {
@@ -109,15 +126,26 @@ export function buildTheme(variants = []) {
       t.pager.pattern = "p%d.html";
     }
 
-    if (variant === "detail-restructured") {
-      // List pages untouched. Only the detail step breaks.
-      t.detail.titleCls = "page-heading";
-      t.detail.titleInHeader = true;
-      t.detail.specsAsDl = true;
-      t.detail.skuInSpecs = true;
-      t.detail.overviewWrapper = true;
-    }
   }
+
+  // List pages untouched; only the detail step breaks. Applied as a set rather
+  // than in the loop above, because `detail-restructured` is defined to be the
+  // union of the atoms and each atom flips one independent flag.
+  const detailBreaks = new Set(
+    variants.includes("detail-restructured")
+      ? DETAIL_ATOMS
+      : variants.filter((v) => DETAIL_ATOMS.includes(v)),
+  );
+
+  if (detailBreaks.has("detail-title-moved")) {
+    // The one field almost every spec extracts: renamed AND lifted out of
+    // <main>, so neither the class nor a descendant path survives.
+    t.detail.titleCls = "page-heading";
+    t.detail.titleInHeader = true;
+  }
+  if (detailBreaks.has("detail-specs-dl")) t.detail.specsAsDl = true;
+  if (detailBreaks.has("detail-description-wrapped")) t.detail.overviewWrapper = true;
+  if (detailBreaks.has("detail-sku-folded")) t.detail.skuInSpecs = true;
 
   return t;
 }

@@ -59,10 +59,42 @@ hand you a false heal verdict.
 | `moved-fields` | Container survives. Price becomes a `data-price` attribute, SKU disappears from cards (detail-only), the review count is folded into the rating text. | items still found, but **price, SKU and review count are null on every row** |
 | `broken-pagination` | The next link becomes `<button data-target="p2.html">` and page files are renamed `page-N.html` → `pN.html`. Cards untouched. | **12 of 150 records** — there is no next `href` to follow, and a guessed `page-2.html` now 404s |
 | `detail-restructured` | List pages untouched. Detail title moves into a `<header>` and is renamed, the spec table becomes a `<dl>`, the description gets a new wrapper. | list fields fine, **detail fields null** |
+| `detail-title-moved` | Detail title only: `.detail-title` → `.page-heading`, lifted out of `<main>` into `<header class="detail-header">`. | **detail title null**, every other field fine |
+| `detail-specs-dl` | Spec table only: `<table class="specs">` with `.spec-name`/`.spec-value` → `<dl class="attributes">` with `<dt>`/`<dd>`. | **spec fields null**, every other field fine |
+| `detail-description-wrapped` | Description only: `.detail-description` → `<section class="overview">` → `.overview-body`. | **detail description null**, every other field fine |
+| `detail-sku-folded` | SKU only: the `.detail-sku` paragraph disappears and SKU becomes the first spec row. | **detail SKU null**, every other field fine |
 
 Each variant is deliberately narrow so a heal outcome points at one cause. Together they
 cover the four ways a run can be wrong while still reporting success: total failure,
 missing fields, missing coverage, and one broken step.
+
+### Running the detail test more than once
+
+`detail-restructured` is exactly the union of the four `detail-*` atoms, and that is what
+makes the detail test repeatable. A heal test is **spent** once the healer fixes it:
+re-applying the same break to an already-healed workflow breaks nothing, because the
+healed spec now targets the new markup. So break one detail field per round instead:
+
+```sh
+node build.mjs --variant=detail-title-moved            # round 1 → heal → activate
+node build.mjs --variant=detail-specs-dl               # round 2 → heal → activate
+node build.mjs --variant=detail-description-wrapped    # round 3
+node build.mjs --variant=detail-sku-folded             # round 4
+```
+
+Each round is a fresh, never-healed break at unchanged URLs, and the list step stays
+green throughout — asserted, not assumed (`node --test` checks every atom's list pages
+are byte-identical to the baseline's).
+
+One caveat worth knowing before you read a round as a dud: **a single-field break may sit
+below the healer's detection threshold on purpose.** The shape autotest gates on a
+regression *ratio*, so if the detail step extracts six fields and one goes blank, the
+run can be judged healthy and no heal case opens. That is a real measurement, not a
+fixture bug — combine atoms to cross the threshold when you want a heal to fire:
+
+```sh
+node build.mjs --variant=detail-title-moved,detail-specs-dl,detail-sku-folded
+```
 
 ## How it is built
 
@@ -111,6 +143,11 @@ variants for heal tests; change counts only when starting a fresh baseline.
 The first five check the site is still *correct*. The sixth checks it is *different* —
 without it, a variant that silently became a no-op would pass everything else and a heal
 test run against it would be measuring nothing.
+
+Two more groups guard the detail atoms specifically: that the four together render
+byte-identical detail pages to `detail-restructured` (so the bundle can never drift from
+its parts), and that each atom on its own leaves every list page byte-identical to the
+baseline (so a "detail-only" break really is detail-only).
 
 ## Deployment
 

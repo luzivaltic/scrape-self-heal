@@ -13,11 +13,25 @@ import { after, before, describe, it } from "node:test";
 
 import { VARIANTS, build, detailHref, esc, pageHref } from "../build.mjs";
 
+/**
+ * The four atomic detail breaks. `detail-restructured` is exactly their union,
+ * so a heal test can be run four times over — one field per round — instead of
+ * being spent on the first. Assertion 6 reads this table, so adding an atom
+ * without a marker pair here is a test failure rather than a silent no-op.
+ */
+const DETAIL_ATOMS = [
+  "detail-title-moved",
+  "detail-specs-dl",
+  "detail-description-wrapped",
+  "detail-sku-folded",
+];
+
 /** Each case: the variants to build, and what must have changed as a result. */
 const CASES = [
   { name: "baseline", variants: [] },
   ...VARIANTS.map((v) => ({ name: v, variants: [v] })),
   { name: "compound", variants: ["renamed-classes", "broken-pagination"] },
+  { name: "detail-atoms-union", variants: DETAIL_ATOMS },
 ];
 
 const built = new Map();
@@ -143,7 +157,11 @@ for (const c of CASES) {
       const renamed = c.variants.includes("renamed-classes");
       const moved = c.variants.includes("moved-fields");
       const pager = c.variants.includes("broken-pagination");
-      const detail = c.variants.includes("detail-restructured");
+      // A detail atom is in effect either on its own or via the bundle, which is
+      // defined to be their union. Asserted per atom so a narrow variant that
+      // stopped breaking its one field cannot hide inside the bundle's pass.
+      const atom = (name) =>
+        c.variants.includes(name) || c.variants.includes("detail-restructured");
 
       assert.equal(has(lists, '<article class="product-card"'), !renamed, "product-card container");
       assert.equal(has(lists, 'class="listing-tile"'), renamed, "listing-tile container");
@@ -160,13 +178,65 @@ for (const c of CASES) {
       assert.equal(b.pages.has("p2.html"), pager, "p2.html");
       assert.equal(has(lists, 'href="page-2.html"'), !pager, "link to page-2.html");
 
-      assert.equal(has(details, '<table class="specs">'), !detail, "spec table");
-      assert.equal(has(details, '<dl class="attributes">'), detail, "spec definition list");
-      assert.equal(has(details, 'class="detail-title"'), !detail, "detail-title");
-      assert.equal(has(details, 'class="page-heading"'), detail, "page-heading");
+      const titleMoved = atom("detail-title-moved");
+      assert.equal(has(details, 'class="detail-title"'), !titleMoved, "detail-title");
+      assert.equal(has(details, 'class="page-heading"'), titleMoved, "page-heading");
+      assert.equal(
+        has(details, '<header class="detail-header">'),
+        titleMoved,
+        "title lifted out of <main> into a <header>",
+      );
+
+      const specsDl = atom("detail-specs-dl");
+      assert.equal(has(details, '<table class="specs">'), !specsDl, "spec table");
+      assert.equal(has(details, '<dl class="attributes">'), specsDl, "spec definition list");
+
+      const descWrapped = atom("detail-description-wrapped");
+      assert.equal(has(details, 'class="detail-description"'), !descWrapped, "detail-description");
+      assert.equal(has(details, 'class="overview-body"'), descWrapped, "overview wrapper");
+
+      // Spec keys are Weight/Dimensions/Material/Finish/Warranty and sku values
+      // read "SKU-1005", so `>SKU<` matches the folded key cell and nothing else.
+      const skuFolded = atom("detail-sku-folded");
+      assert.equal(has(details, 'class="detail-sku"'), !skuFolded, "standalone detail sku");
+      assert.equal(has(details, ">SKU<"), skuFolded, "sku folded in as a spec row");
     });
   });
 }
+
+describe("the detail atoms", () => {
+  const stripStamp = (html) => html.replace(/<!-- variant: [^>]*-->/, "");
+
+  it("sum to exactly detail-restructured", () => {
+    const bundle = built.get("detail-restructured");
+    const union = built.get("detail-atoms-union");
+
+    for (const item of bundle.items) {
+      const name = detailHref(item);
+      assert.equal(
+        stripStamp(union.pages.get(name)),
+        stripStamp(bundle.pages.get(name)),
+        `${name}: the four atoms together must render what detail-restructured renders, ` +
+          `or the runbook's bundled break has drifted from its parts`,
+      );
+    }
+  });
+
+  for (const name of DETAIL_ATOMS) {
+    it(`${name} leaves the list pages completely untouched`, () => {
+      const base = built.get("baseline");
+      const b = built.get(name);
+
+      for (const page of listPageNames(base)) {
+        assert.equal(
+          stripStamp(b.pages.get(page)),
+          stripStamp(base.pages.get(page)),
+          `${page} changed — a detail atom must break only the detail step`,
+        );
+      }
+    });
+  }
+});
 
 describe("output hygiene", () => {
   it("clears stale pages, so a renamed pager cannot keep working", async () => {
