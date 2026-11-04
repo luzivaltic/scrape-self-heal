@@ -63,10 +63,22 @@ hand you a false heal verdict.
 | `detail-specs-dl` | Spec table only: `<table class="specs">` with `.spec-name`/`.spec-value` → `<dl class="attributes">` with `<dt>`/`<dd>`. | **spec fields null**, every other field fine |
 | `detail-description-wrapped` | Description only: `.detail-description` → `<section class="overview">` → `.overview-body`. | **detail description null**, every other field fine |
 | `detail-sku-folded` | SKU only: the `.detail-sku` paragraph disappears and SKU becomes the first spec row. | **detail SKU null**, every other field fine |
+| `data-removed` | *Content* variant. Same URLs, but every card is an empty shell ("temporarily unavailable") and every detail page shows no product field. | **no product data anywhere**: a break no fix can recover (the healer's `broken-no-fix` case) |
+| `price-constant` | *Content* variant. Every card and detail page shows the same price (`$99.00`). | every field filled, **price one value on every row**: the healer's value-health screen |
+| `hidden-category` | *Content* variant. The site nav gains a **Clearance** link to `clearance.html` (3 pages, 30 more products from `data/clearance.json`, each with a detail page); the count reads **180 products**. The main pager is untouched. | **150 of 180**: a reachable gap the original spec does not follow (completeness check) |
+| `extra-pages` | *Content* variant. The same 30 products appended as list pages 14–16, linked from page 13's Next; the count reads 180. | 180 records: the catalogue simply grew |
+| `extra-pages-unlinked` | As `extra-pages`, but page 13 has no Next: pages 14–16 exist and nothing links to them. | **150 of 180** |
 
 Each variant is deliberately narrow so a heal outcome points at one cause. Together they
 cover the four ways a run can be wrong while still reporting success: total failure,
 missing fields, missing coverage, and one broken step.
+
+The five *content* variants change what the site says, not only its markup, so they break
+the "data never varies" rule on purpose: each stages one self-healer case the markup
+variants cannot (see `docs/self-healer-live-proof-2026-11-findings.md` in scraperos-new).
+The extra products live in their own frozen file, so `data/items.json` and every other
+variant render exactly as before. Assertion 1 is skipped for `data-removed`, which
+asserts the opposite instead.
 
 ### Running the detail test more than once
 

@@ -33,12 +33,38 @@ export const DETAIL_ATOMS = [
   "detail-sku-folded",
 ];
 
+/**
+ * Variants that change what the site SAYS, not only its markup. Each exists for
+ * one self-healer case the markup variants cannot stage (see the README):
+ *
+ *   data-removed          every product field is gone from list and detail
+ *                         pages at the old URLs — a break no fix can recover
+ *   price-constant        every price reads the same value — a "filled but
+ *                         wrong" field for the value-health screen
+ *   hidden-category       30 more products in a Clearance section linked only
+ *                         from the site nav; the count says 180
+ *   extra-pages           the same 30 products appended as list pages 14-16,
+ *                         linked from page 13's Next; the count says 180
+ *   extra-pages-unlinked  pages 14-16 exist but nothing links to them
+ */
+export const CONTENT_VARIANTS = [
+  "data-removed",
+  "price-constant",
+  "hidden-category",
+  "extra-pages",
+  "extra-pages-unlinked",
+];
+
+/** The one price every product shows under price-constant. */
+export const CONSTANT_PRICE = "99.00";
+
 export const VARIANTS = [
   "renamed-classes",
   "moved-fields",
   "broken-pagination",
   "detail-restructured",
   ...DETAIL_ATOMS,
+  ...CONTENT_VARIANTS,
 ];
 
 export function esc(value) {
@@ -81,6 +107,15 @@ export function buildTheme(variants = []) {
     showSkuSpan: true,
     mergeReviewsIntoRating: false,
     pager: { asButton: false, pattern: "page-%d.html" },
+    dataRemoved: variants.includes("data-removed"),
+    priceConstant: variants.includes("price-constant"),
+    hiddenCategory: variants.includes("hidden-category"),
+    // null = no extra pages; otherwise whether page 13 links to page 14.
+    extraPagesLinked: variants.includes("extra-pages")
+      ? true
+      : variants.includes("extra-pages-unlinked")
+        ? false
+        : null,
     detail: {
       titleCls: "detail-title",
       titleInHeader: false,
@@ -151,14 +186,14 @@ export function buildTheme(variants = []) {
 }
 
 export function pageHref(n, t) {
-  return n === 1 ? "index.html" : t.pager.pattern.replace("%d", String(n));
+  return n === 1 ? (t.pager.first ?? "index.html") : t.pager.pattern.replace("%d", String(n));
 }
 
 export function detailHref(item) {
   return `item-${item.slug}.html`;
 }
 
-function layout({ title, stamp, body, cfg }) {
+function layout({ title, stamp, body, cfg, extraNav = "" }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -174,7 +209,7 @@ function layout({ title, stamp, body, cfg }) {
   <nav class="site-nav">
     <a href="index.html">Catalogue</a>
     <a href="about.html">About</a>
-    <a href="contact.html">Contact</a>
+    <a href="contact.html">Contact</a>${extraNav}
   </nav>
 </header>
 ${body}
@@ -187,11 +222,25 @@ ${body}
 `;
 }
 
+const shownPrice = (item, t) => (t.priceConstant ? CONSTANT_PRICE : item.price);
+
+function renderRemovedCard(item, t) {
+  return `    <${t.card.tag} class="${t.card.cls}">
+      <a class="product-link" href="${detailHref(item)}">
+        <img class="product-thumb" src="img/placeholder.svg" alt="" width="400" height="300">
+      </a>
+      <div class="product-body">
+        <p class="listing-unavailable">This listing is temporarily unavailable.</p>
+      </div>
+    </${t.card.tag}>`;
+}
+
 function renderCard(item, t) {
+  if (t.dataRemoved) return renderRemovedCard(item, t);
   const attrs = [];
   if (t.card.skuAttr) attrs.push(`data-sku="${esc(item.sku)}"`);
   if (t.card.priceAttrs) {
-    attrs.push(`data-price="${esc(item.price)}"`);
+    attrs.push(`data-price="${esc(shownPrice(item, t))}"`);
     attrs.push(`data-currency="${esc(item.currency)}"`);
     if (item.priceWas) attrs.push(`data-price-was="${esc(item.priceWas)}"`);
   }
@@ -200,7 +249,7 @@ function renderCard(item, t) {
 
   const pricing = t.showPriceSpans
     ? `        <div class="product-pricing">
-          <span class="${t.cls.price}">$${esc(item.price)}</span>${
+          <span class="${t.cls.price}">$${esc(shownPrice(item, t))}</span>${
             item.priceWas
               ? `\n          <span class="${t.cls.priceWas}">$${esc(item.priceWas)}</span>`
               : ""
@@ -234,7 +283,7 @@ ${rating}${sku}          <span class="${t.cls.stock} ${stockState}">${esc(item.s
     </${t.card.tag}>`;
 }
 
-function renderPager(pageNo, totalPages, t) {
+function renderPager(pageNo, totalPages, t, lastLinked = totalPages) {
   const parts = [`  <span class="pager-current">Page ${pageNo} of ${totalPages}</span>`];
 
   if (pageNo > 1) {
@@ -243,7 +292,7 @@ function renderPager(pageNo, totalPages, t) {
     );
   }
 
-  if (pageNo < totalPages) {
+  if (pageNo < totalPages && pageNo !== lastLinked) {
     const next = pageHref(pageNo + 1, t);
     parts.push(
       t.pager.asButton
@@ -282,7 +331,17 @@ ${rows}
 </aside>`;
 }
 
-function renderListPage({ pageItems, pageNo, totalPages, allItems, t, cfg }) {
+function clearanceNav(t) {
+  return t.hiddenCategory ? `\n    <a href="clearance.html">Clearance</a>` : "";
+}
+
+function resultCount(allItems, t, advertised) {
+  return t.dataRemoved
+    ? "Listings temporarily unavailable"
+    : `${advertised ?? allItems.length} products`;
+}
+
+function renderListPage({ pageItems, pageNo, totalPages, allItems, t, cfg, advertised, lastLinked }) {
   const body = `<div class="promo-banner">Free delivery on orders over $75 · collection from the workshop any weekday</div>
 <nav class="breadcrumb" aria-label="Breadcrumb">
   <a href="index.html">Home</a> <span class="crumb-sep">/</span> <span class="crumb-current">Catalogue</span>
@@ -291,11 +350,11 @@ function renderListPage({ pageItems, pageNo, totalPages, allItems, t, cfg }) {
 ${renderSidebar(allItems)}
   <main class="listing">
     <h1 class="listing-title">${esc(cfg.listingTitle)}</h1>
-    <p class="result-count">${allItems.length} products</p>
+    <p class="result-count">${resultCount(allItems, t, advertised)}</p>
     <div class="product-grid">
 ${pageItems.map((item) => renderCard(item, t)).join("\n")}
     </div>
-${renderPager(pageNo, totalPages, t)}
+${renderPager(pageNo, totalPages, t, lastLinked)}
     <section class="listing-copy">
       <h2>About this catalogue</h2>
       <p>Every piece here is stocked in the workshop and shipped from it. We list weight,
@@ -309,7 +368,7 @@ ${renderPager(pageNo, totalPages, t)}
 
   return layout({
     title: pageNo === 1 ? cfg.listingTitle : `${cfg.listingTitle} — page ${pageNo}`,
-    stamp: t.stamp,
+    stamp: t.stamp, extraNav: clearanceNav(t),
     body,
     cfg,
   });
@@ -337,7 +396,20 @@ ${rows
   </table>`;
 }
 
+function renderRemovedDetailPage({ t, cfg }) {
+  const body = `<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="index.html">Home</a> <span class="crumb-sep">/</span> <span class="crumb-current">Unavailable</span>
+</nav>
+<main class="product-detail">
+  <h1 class="unavailable-title">This product is temporarily unavailable</h1>
+  <p class="unavailable-note">Its details are not shown while the listing is unavailable.</p>
+  <p class="detail-back"><a href="index.html">Back to the catalogue</a></p>
+</main>`;
+  return layout({ title: "Unavailable", stamp: t.stamp, extraNav: clearanceNav(t), body, cfg });
+}
+
 function renderDetailPage({ item, t, cfg }) {
+  if (t.dataRemoved) return renderRemovedDetailPage({ t, cfg });
   const heading = `<h1 class="${t.detail.titleCls}">${esc(item.title)}</h1>`;
 
   const description = t.detail.overviewWrapper
@@ -347,7 +419,7 @@ function renderDetailPage({ item, t, cfg }) {
   </section>`
     : `  <div class="detail-description"><p>${esc(item.description)}</p></div>`;
 
-  const price = `  <div class="detail-price"><span class="price">$${esc(item.price)}</span>${
+  const price = `  <div class="detail-price"><span class="price">$${esc(shownPrice(item, t))}</span>${
     item.priceWas ? `<span class="price-was">$${esc(item.priceWas)}</span>` : ""
   }</div>`;
 
@@ -370,7 +442,7 @@ ${renderSpecs(item, t)}
   <p class="detail-back"><a href="index.html">Back to the catalogue</a></p>
 </main>`;
 
-  return layout({ title: item.title, stamp: t.stamp, body, cfg });
+  return layout({ title: item.title, stamp: t.stamp, extraNav: clearanceNav(t), body, cfg });
 }
 
 function renderStaticPage({ heading, paragraphs, t, cfg }) {
@@ -381,7 +453,7 @@ function renderStaticPage({ heading, paragraphs, t, cfg }) {
   <h1>${esc(heading)}</h1>
 ${paragraphs.map((p) => `  <p>${esc(p)}</p>`).join("\n")}
 </main>`;
-  return layout({ title: heading, stamp: t.stamp, body, cfg });
+  return layout({ title: heading, stamp: t.stamp, extraNav: clearanceNav(t), body, cfg });
 }
 
 /**
@@ -556,7 +628,23 @@ export async function build({
   }
   if (!items.length) throw new Error(`${dataPath} holds no items — run gen-data.mjs first`);
 
-  const totalPages = Math.ceil(items.length / perPage);
+  // The content variants that ADD products read them from their own frozen file,
+  // so data/items.json and every other variant stay exactly as they were.
+  const extra =
+    t.hiddenCategory || t.extraPagesLinked !== null
+      ? JSON.parse(await readFile(resolve(dirname(dataPath), "clearance.json"), "utf8"))
+      : [];
+  // extra-pages appends them to the main pager as pages of their own (page 13
+  // keeps exactly its baseline items); hidden-category keeps them apart.
+  const chunk = (list) =>
+    Array.from({ length: Math.ceil(list.length / perPage) }, (_, i) =>
+      list.slice(i * perPage, (i + 1) * perPage),
+    );
+  const mainPages = chunk(items);
+  const pages = t.extraPagesLinked !== null ? [...mainPages, ...chunk(extra)] : mainPages;
+  const advertised = extra.length ? items.length + extra.length : undefined;
+  const totalPages = pages.length;
+  const lastLinked = t.extraPagesLinked === false ? mainPages.length : totalPages;
 
   // Clear the output first. A stale page-N.html left behind would keep a
   // constructed pager working under broken-pagination, and the break would not
@@ -576,14 +664,32 @@ export async function build({
   await writeFile(join(outDir, "img/placeholder.svg"), PLACEHOLDER_SVG, "utf8");
 
   for (let pageNo = 1; pageNo <= totalPages; pageNo += 1) {
-    const pageItems = items.slice((pageNo - 1) * perPage, pageNo * perPage);
+    const pageItems = pages[pageNo - 1];
     await write(
       pageHref(pageNo, t),
-      renderListPage({ pageItems, pageNo, totalPages, allItems: items, t, cfg }),
+      renderListPage({ pageItems, pageNo, totalPages, allItems: items, t, cfg, advertised, lastLinked }),
     );
   }
 
-  for (const item of items) {
+  if (t.hiddenCategory) {
+    const ct = { ...t, pager: { asButton: false, pattern: "clearance-%d.html", first: "clearance.html" } };
+    const clearancePages = Math.ceil(extra.length / perPage);
+    for (let pageNo = 1; pageNo <= clearancePages; pageNo += 1) {
+      await write(
+        pageHref(pageNo, ct),
+        renderListPage({
+          pageItems: extra.slice((pageNo - 1) * perPage, pageNo * perPage),
+          pageNo,
+          totalPages: clearancePages,
+          allItems: extra,
+          t: ct,
+          cfg: { ...cfg, listingTitle: "Clearance" },
+        }),
+      );
+    }
+  }
+
+  for (const item of [...items, ...extra]) {
     await write(detailHref(item), renderDetailPage({ item, t, cfg }));
   }
 
@@ -615,7 +721,7 @@ export async function build({
   await write("open-tab.html", renderOpenTabPage({ t, cfg }));
   await write("visit.html", renderVisitPage({ t, cfg }));
 
-  return { variant: t.stamp, items: items.length, totalPages, outDir, written, theme: t };
+  return { variant: t.stamp, items: items.length, extra: extra.length, totalPages, outDir, written, theme: t };
 }
 
 function arg(name, fallback) {

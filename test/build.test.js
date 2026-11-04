@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 
-import { VARIANTS, VISIT_HOLD_MS, build, detailHref, esc, pageHref } from "../build.mjs";
+import { CONSTANT_PRICE, VARIANTS, VISIT_HOLD_MS, build, detailHref, esc, pageHref } from "../build.mjs";
 
 /**
  * The four atomic detail breaks. `detail-restructured` is exactly their union,
@@ -47,7 +47,8 @@ before(async () => {
       pages.set(name, await readFile(join(outDir, name), "utf8"));
     }
     const items = JSON.parse(await readFile(new URL("../data/items.json", import.meta.url), "utf8"));
-    built.set(c.name, { ...result, pages, items, outDir });
+    const extra = JSON.parse(await readFile(new URL("../data/clearance.json", import.meta.url), "utf8"));
+    built.set(c.name, { ...result, pages, items, extra, outDir });
   }
 });
 
@@ -73,15 +74,18 @@ function nextHref(html, theme) {
 
 for (const c of CASES) {
   describe(`variant: ${c.name}`, () => {
-    it("1. every item's values survive the render", () => {
+    it("1. every item's values survive the render", (t) => {
+      // The two variants that change what the site says check their own claim below.
+      if (c.variants.includes("data-removed")) return t.skip("data-removed renders no values");
       const b = built.get(c.name);
       const whole = [...b.pages.values()].join("\n");
+      const priceConstant = c.variants.includes("price-constant");
 
       for (const item of b.items) {
         for (const [field, value] of [
           ["title", esc(item.title)],
           ["sku", esc(item.sku)],
-          ["price", `$${item.price}`],
+          ["price", priceConstant ? `${CONSTANT_PRICE}` : `${item.price}`],
           ["brand", esc(item.brand)],
           ["category", esc(item.category)],
           ["description", esc(item.description)],
@@ -100,10 +104,12 @@ for (const c of CASES) {
       const b = built.get(c.name);
       const names = listPageNames(b);
 
+      const appended = b.theme.extraPagesLinked !== null ? b.extra : [];
+      const listed = [...b.items, ...appended];
       const total = names.reduce((n, name) => n + countCards(b.pages.get(name), b.theme), 0);
-      assert.equal(total, b.items.length, "card count across list pages");
+      assert.equal(total, listed.length, "card count across list pages");
 
-      for (const item of b.items) {
+      for (const item of listed) {
         const hits = names.filter((name) => b.pages.get(name).includes(`href="${detailHref(item)}"`));
         assert.equal(hits.length, 1, `${item.slug} should be linked from exactly 1 list page, got ${hits.length}`);
       }
@@ -132,8 +138,11 @@ for (const c of CASES) {
         current = nextHref(b.pages.get(current), b.theme);
       }
 
-      assert.equal(visited.length, b.totalPages, "pages reachable by following the pager");
-      assert.deepEqual(visited, listPageNames(b), "pager order");
+      // extra-pages-unlinked: pages 14-16 exist, but the pager stops at 13.
+      const reachable =
+        b.theme.extraPagesLinked === false ? Math.ceil(b.items.length / 12) : b.totalPages;
+      assert.equal(visited.length, reachable, "pages reachable by following the pager");
+      assert.deepEqual(visited, listPageNames(b).slice(0, reachable), "pager order");
     });
 
     it("5. every page is stamped with the variant", () => {
@@ -154,23 +163,24 @@ for (const c of CASES) {
       // Baseline markers, asserted present when the variant does NOT touch them
       // and absent when it does. Stated as one table so a variant can never
       // quietly stop breaking what it claims to break.
-      const renamed = c.variants.includes("renamed-classes");
+      const removed = c.variants.includes("data-removed");
+      const renamed = c.variants.includes("renamed-classes") || removed;
       const moved = c.variants.includes("moved-fields");
       const pager = c.variants.includes("broken-pagination");
       // A detail atom is in effect either on its own or via the bundle, which is
       // defined to be their union. Asserted per atom so a narrow variant that
       // stopped breaking its one field cannot hide inside the bundle's pass.
       const atom = (name) =>
-        c.variants.includes(name) || c.variants.includes("detail-restructured");
+        c.variants.includes(name) || c.variants.includes("detail-restructured") || removed;
 
-      assert.equal(has(lists, '<article class="product-card"'), !renamed, "product-card container");
-      assert.equal(has(lists, 'class="listing-tile"'), renamed, "listing-tile container");
+      assert.equal(has(lists, '<article class="product-card"'), !c.variants.includes("renamed-classes"), "product-card container");
+      assert.equal(has(lists, 'class="listing-tile"'), c.variants.includes("renamed-classes"), "listing-tile container");
       assert.equal(has(lists, 'class="product-title"'), !renamed, "product-title");
 
       assert.equal(has(lists, '<span class="price">'), !moved && !renamed, "visible price span");
       assert.equal(has(lists, 'data-price="'), moved, "price as a data attribute");
       assert.equal(has(lists, '<span class="sku">'), !moved && !renamed, "sku span on cards");
-      assert.equal(has(lists, "reviews</span>"), !moved, "standalone review count");
+      assert.equal(has(lists, "reviews</span>"), !moved && !removed, "standalone review count");
 
       assert.equal(has(lists, 'rel="next"'), !pager, "href-bearing next link");
       assert.equal(has(lists, "<button class=\"pager-next\""), pager, "next as a button");
@@ -180,26 +190,26 @@ for (const c of CASES) {
 
       const titleMoved = atom("detail-title-moved");
       assert.equal(has(details, 'class="detail-title"'), !titleMoved, "detail-title");
-      assert.equal(has(details, 'class="page-heading"'), titleMoved, "page-heading");
+      assert.equal(has(details, 'class="page-heading"'), titleMoved && !removed, "page-heading");
       assert.equal(
         has(details, '<header class="detail-header">'),
-        titleMoved,
+        titleMoved && !removed,
         "title lifted out of <main> into a <header>",
       );
 
       const specsDl = atom("detail-specs-dl");
       assert.equal(has(details, '<table class="specs">'), !specsDl, "spec table");
-      assert.equal(has(details, '<dl class="attributes">'), specsDl, "spec definition list");
+      assert.equal(has(details, '<dl class="attributes">'), specsDl && !removed, "spec definition list");
 
       const descWrapped = atom("detail-description-wrapped");
       assert.equal(has(details, 'class="detail-description"'), !descWrapped, "detail-description");
-      assert.equal(has(details, 'class="overview-body"'), descWrapped, "overview wrapper");
+      assert.equal(has(details, 'class="overview-body"'), descWrapped && !removed, "overview wrapper");
 
       // Spec keys are Weight/Dimensions/Material/Finish/Warranty and sku values
       // read "SKU-1005", so `>SKU<` matches the folded key cell and nothing else.
       const skuFolded = atom("detail-sku-folded");
       assert.equal(has(details, 'class="detail-sku"'), !skuFolded, "standalone detail sku");
-      assert.equal(has(details, ">SKU<"), skuFolded, "sku folded in as a spec row");
+      assert.equal(has(details, ">SKU<"), skuFolded && !removed, "sku folded in as a spec row");
     });
   });
 }
@@ -289,5 +299,57 @@ describe("output hygiene", () => {
 
   it("rejects an unknown variant instead of silently building the baseline", async () => {
     await assert.rejects(() => build({ outDir: tmpDirs[0], variants: ["renamed-clases"] }), /unknown variant/);
+  });
+});
+
+describe("the content variants", () => {
+  it("data-removed shows no product value anywhere, at the baseline's URLs", () => {
+    const base = built.get("baseline");
+    const b = built.get("data-removed");
+    assert.deepEqual([...b.pages.keys()].sort(), [...base.pages.keys()].sort(), "same URLs");
+    const whole = [...b.pages.values()].join("\n");
+    for (const item of b.items) {
+      for (const value of [esc(item.title), esc(item.sku), `$${item.price}`, esc(item.description)]) {
+        assert.ok(!whole.includes(value), `${item.slug}: ${value} is still on the site`);
+      }
+    }
+  });
+
+  it("price-constant shows one price on every card and detail page", () => {
+    const b = built.get("price-constant");
+    const shown = [...b.pages.values()]
+      .join("\n")
+      .matchAll(/<span class="price">\$([0-9.]+)<\/span>/g);
+    const prices = new Set([...shown].map((m) => m[1]));
+    assert.deepEqual([...prices], [CONSTANT_PRICE]);
+  });
+
+  it("hidden-category lists 30 more products only behind the nav's Clearance link", () => {
+    const base = built.get("baseline");
+    const b = built.get("hidden-category");
+    const clearance = ["clearance.html", "clearance-2.html", "clearance-3.html"];
+    const cards = clearance.reduce((n, name) => n + countCards(b.pages.get(name), b.theme), 0);
+    assert.equal(cards, b.extra.length);
+    for (const item of b.extra) assert.ok(b.pages.has(detailHref(item)), `${item.slug} detail page`);
+    assert.ok(b.pages.get("index.html").includes('<a href="clearance.html">Clearance</a>'));
+    assert.ok(b.pages.get("index.html").includes(`${b.items.length + b.extra.length} products`));
+    for (const name of listPageNames(base)) {
+      assert.ok(!b.pages.get(name).includes("item-clearance-"), `${name} lists a clearance item`);
+    }
+  });
+
+  it("extra-pages appends pages 14-16; extra-pages-unlinked leaves page 13 without a Next", () => {
+    const linked = built.get("extra-pages");
+    const unlinked = built.get("extra-pages-unlinked");
+    assert.equal(nextHref(linked.pages.get("page-13.html"), linked.theme), "page-14.html");
+    assert.equal(nextHref(unlinked.pages.get("page-13.html"), unlinked.theme), undefined);
+    assert.ok(unlinked.pages.has("page-14.html") && unlinked.pages.has("page-16.html"));
+    const base = built.get("baseline");
+    const strip = (html) => html.replace(/<!-- variant: [^>]*-->/, "").replace(/\d+ products/, "");
+    assert.equal(
+      strip(linked.pages.get("page-12.html")).replace(/of 16/, "of 13"),
+      strip(base.pages.get("page-12.html")),
+      "pages 1-12 keep their baseline items",
+    );
   });
 });
