@@ -55,3 +55,7 @@ button.pager-next{font:inherit;font-size:.9rem;padding:.35rem .8rem;border:1px s
 .detail-released{font-size:.85rem;color:var(--muted)}
 .site-footer{padding:1.6rem 2rem;border-top:1px solid var(--line);background:#fff;font-size:.85rem;color:var(--muted)}
 .footer-fine{font-size:.78rem}
+.visit-count{font-weight:700;font-size:1.3rem}
+.open-tab-button{font:inherit;padding:.5rem 1rem;border:1px solid var(--accent);background:#fff;color:var(--accent);cursor:pointer}
+.open-tab-button:disabled{opacity:.45;cursor:not-allowed}
+.visit-status,.visit-done{color:var(--muted);font-size:.9rem}

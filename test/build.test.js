@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 
-import { VARIANTS, build, detailHref, esc, pageHref } from "../build.mjs";
+import { VARIANTS, VISIT_HOLD_MS, build, detailHref, esc, pageHref } from "../build.mjs";
 
 /**
  * The four atomic detail breaks. `detail-restructured` is exactly their union,
@@ -236,6 +236,38 @@ describe("the detail atoms", () => {
       }
     });
   }
+});
+
+describe("the open-tab test page", () => {
+  it("opens visit.html in a new tab and waits the hold time before counting", () => {
+    const b = built.get("baseline");
+    const html = b.pages.get("open-tab.html");
+    assert.ok(html, "open-tab.html was never written");
+    assert.ok(b.pages.has("visit.html"), "visit.html was never written");
+    assert.match(html, /data-target="visit\.html"/);
+    assert.match(html, /window\.open\(button\.dataset\.target, "_blank"\)/);
+    assert.match(html, new RegExp(`const HOLD_MS = ${VISIT_HOLD_MS};`));
+    assert.match(html, /<span id="visit-count" class="visit-count">0<\/span>/);
+  });
+
+  it("is reached from no catalogue page, so saved workflows never see it", () => {
+    for (const c of CASES) {
+      for (const [name, html] of built.get(c.name).pages) {
+        if (name === "open-tab.html" || name === "visit.html") continue;
+        assert.ok(!html.includes("open-tab.html") && !html.includes("visit.html"), `${c.name}/${name} links to the tab test`);
+      }
+    }
+  });
+
+  it("renders the same in every variant", () => {
+    const stripStamp = (html) => html.replace(/<!-- variant: [^>]*-->/, "");
+    const base = built.get("baseline");
+    for (const c of CASES) {
+      for (const name of ["open-tab.html", "visit.html"]) {
+        assert.equal(stripStamp(built.get(c.name).pages.get(name)), stripStamp(base.pages.get(name)), `${c.name}/${name}`);
+      }
+    }
+  });
 });
 
 describe("output hygiene", () => {

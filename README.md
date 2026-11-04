@@ -102,6 +102,18 @@ still expected to open a heal case naming the description.
 The run still completes with all 150 records and every other field intact, which is the
 point: this is the shape of break that reports success.
 
+## The new-tab test (`open-tab.html`)
+
+A separate test page: no catalogue page links to it, and it renders the same in
+every variant. Its button opens `visit.html` in a new tab (`_blank`; the original
+tab stays). The button stays disabled while the page watches that tab:
+
+- still open after 5 s → **Visits** goes up by 1 and the button comes back
+- closed before 5 s → no count, the button comes back, "Closed too early"
+
+The opened tab is never closed for you. The count lives in the page, so a reload
+resets it to 0. The hold time is `VISIT_HOLD_MS` in `build.mjs`.
+
 ## How it is built
 
 Two scripts, deliberately separate:

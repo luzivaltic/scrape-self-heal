@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visit page · Fernwood Supply</title>
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<!-- variant: baseline -->
+<body>
+<header class="site-header">
+  <a class="site-logo" href="index.html">Fernwood Supply</a>
+  <nav class="site-nav">
+    <a href="index.html">Catalogue</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </nav>
+</header>
+<main class="static-page tab-test">
+  <h1>Visit page</h1>
+  <p>Keep this tab open. <span id="visit-remaining" class="visit-remaining">5</span> seconds left.</p>
+  <p id="visit-done" class="visit-done" hidden>Done — the visit counts. You can close this tab.</p>
+</main>
+<script>
+(() => {
+  const HOLD_MS = 5000;
+  const openedAt = Date.now();
+  const remainingEl = document.getElementById("visit-remaining");
+  const doneEl = document.getElementById("visit-done");
+  const timer = setInterval(() => {
+    const left = Math.max(0, Math.ceil((HOLD_MS - (Date.now() - openedAt)) / 1000));
+    remainingEl.textContent = String(left);
+    if (left === 0) {
+      clearInterval(timer);
+      doneEl.hidden = false;
+    }
+  }, 250);
+})();
+</script>
+<footer class="site-footer">
+  <p>Fernwood Supply — furniture and fittings for working rooms.</p>
+  <p class="footer-fine">Prices shown in USD. This is a test fixture, not a real shop.</p>
+</footer>
+</body>
+</html>

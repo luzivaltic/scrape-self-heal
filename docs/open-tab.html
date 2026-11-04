@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open a tab · Fernwood Supply</title>
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<!-- variant: baseline -->
+<body>
+<header class="site-header">
+  <a class="site-logo" href="index.html">Fernwood Supply</a>
+  <nav class="site-nav">
+    <a href="index.html">Catalogue</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </nav>
+</header>
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="index.html">Home</a> <span class="crumb-sep">/</span> <span class="crumb-current">Open a tab</span>
+</nav>
+<main class="static-page tab-test">
+  <h1>Open a tab</h1>
+  <p>The button opens a page in a new tab. Keep that tab open for at least 5 seconds; then the button comes back and the count goes up by one.</p>
+  <p class="visit-count-line">Visits: <span id="visit-count" class="visit-count">0</span></p>
+  <p><button id="open-tab" class="open-tab-button" type="button" data-target="visit.html">Open page in a new tab</button></p>
+  <p id="visit-status" class="visit-status" aria-live="polite">Ready.</p>
+</main>
+<script>
+(() => {
+  const HOLD_MS = 5000;
+  const button = document.getElementById("open-tab");
+  const countEl = document.getElementById("visit-count");
+  const statusEl = document.getElementById("visit-status");
+  let count = 0;
+
+  button.addEventListener("click", () => {
+    const tab = window.open(button.dataset.target, "_blank");
+    if (!tab) {
+      statusEl.textContent = "The browser blocked the new tab.";
+      return;
+    }
+    button.disabled = true;
+    const openedAt = Date.now();
+    statusEl.textContent = "Waiting for the new tab to stay open " + HOLD_MS / 1000 + " seconds…";
+
+    const timer = setInterval(() => {
+      if (tab.closed) {
+        clearInterval(timer);
+        button.disabled = false;
+        statusEl.textContent = "Closed too early — not counted.";
+        return;
+      }
+      if (Date.now() - openedAt >= HOLD_MS) {
+        clearInterval(timer);
+        count += 1;
+        countEl.textContent = String(count);
+        button.disabled = false;
+        statusEl.textContent = "Counted. Ready again.";
+      }
+    }, 250);
+  });
+})();
+</script>
+<footer class="site-footer">
+  <p>Fernwood Supply — furniture and fittings for working rooms.</p>
+  <p class="footer-fine">Prices shown in USD. This is a test fixture, not a real shop.</p>
+</footer>
+</body>
+</html>

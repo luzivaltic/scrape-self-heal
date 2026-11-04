@@ -384,6 +384,92 @@ ${paragraphs.map((p) => `  <p>${esc(p)}</p>`).join("\n")}
   return layout({ title: heading, stamp: t.stamp, body, cfg });
 }
 
+/**
+ * The tab test, kept apart from the catalogue: no existing page links to it, so
+ * list and detail pages — and every saved workflow — stay exactly as they were.
+ *
+ * The button opens visit.html in a new tab and stays disabled while this page
+ * watches that tab. A visit counts only if the tab is still open after
+ * VISIT_HOLD_MS; one closed sooner adds nothing. The tab is never closed for
+ * you, and the count lives in the page, so a reload resets it to 0.
+ */
+export const VISIT_HOLD_MS = 5000;
+
+function renderOpenTabPage({ t, cfg }) {
+  const body = `<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="index.html">Home</a> <span class="crumb-sep">/</span> <span class="crumb-current">Open a tab</span>
+</nav>
+<main class="static-page tab-test">
+  <h1>Open a tab</h1>
+  <p>The button opens a page in a new tab. Keep that tab open for at least ${VISIT_HOLD_MS / 1000} seconds; then the button comes back and the count goes up by one.</p>
+  <p class="visit-count-line">Visits: <span id="visit-count" class="visit-count">0</span></p>
+  <p><button id="open-tab" class="open-tab-button" type="button" data-target="visit.html">Open page in a new tab</button></p>
+  <p id="visit-status" class="visit-status" aria-live="polite">Ready.</p>
+</main>
+<script>
+(() => {
+  const HOLD_MS = ${VISIT_HOLD_MS};
+  const button = document.getElementById("open-tab");
+  const countEl = document.getElementById("visit-count");
+  const statusEl = document.getElementById("visit-status");
+  let count = 0;
+
+  button.addEventListener("click", () => {
+    const tab = window.open(button.dataset.target, "_blank");
+    if (!tab) {
+      statusEl.textContent = "The browser blocked the new tab.";
+      return;
+    }
+    button.disabled = true;
+    const openedAt = Date.now();
+    statusEl.textContent = "Waiting for the new tab to stay open " + HOLD_MS / 1000 + " seconds…";
+
+    const timer = setInterval(() => {
+      if (tab.closed) {
+        clearInterval(timer);
+        button.disabled = false;
+        statusEl.textContent = "Closed too early — not counted.";
+        return;
+      }
+      if (Date.now() - openedAt >= HOLD_MS) {
+        clearInterval(timer);
+        count += 1;
+        countEl.textContent = String(count);
+        button.disabled = false;
+        statusEl.textContent = "Counted. Ready again.";
+      }
+    }, 250);
+  });
+})();
+</script>`;
+  return layout({ title: "Open a tab", stamp: t.stamp, body, cfg });
+}
+
+function renderVisitPage({ t, cfg }) {
+  const body = `<main class="static-page tab-test">
+  <h1>Visit page</h1>
+  <p>Keep this tab open. <span id="visit-remaining" class="visit-remaining">${VISIT_HOLD_MS / 1000}</span> seconds left.</p>
+  <p id="visit-done" class="visit-done" hidden>Done — the visit counts. You can close this tab.</p>
+</main>
+<script>
+(() => {
+  const HOLD_MS = ${VISIT_HOLD_MS};
+  const openedAt = Date.now();
+  const remainingEl = document.getElementById("visit-remaining");
+  const doneEl = document.getElementById("visit-done");
+  const timer = setInterval(() => {
+    const left = Math.max(0, Math.ceil((HOLD_MS - (Date.now() - openedAt)) / 1000));
+    remainingEl.textContent = String(left);
+    if (left === 0) {
+      clearInterval(timer);
+      doneEl.hidden = false;
+    }
+  }, 250);
+})();
+</script>`;
+  return layout({ title: "Visit page", stamp: t.stamp, body, cfg });
+}
+
 const CSS = `:root{--ink:#1b1b1a;--muted:#6b6b66;--line:#e2ded6;--bg:#faf8f4;--accent:#7a4a2b}
 *{box-sizing:border-box}
 body{margin:0;font:16px/1.55 "Iowan Old Style",Georgia,serif;color:var(--ink);background:var(--bg)}
@@ -441,6 +527,10 @@ button.pager-next{font:inherit;font-size:.9rem;padding:.35rem .8rem;border:1px s
 .detail-released{font-size:.85rem;color:var(--muted)}
 .site-footer{padding:1.6rem 2rem;border-top:1px solid var(--line);background:#fff;font-size:.85rem;color:var(--muted)}
 .footer-fine{font-size:.78rem}
+.visit-count{font-weight:700;font-size:1.3rem}
+.open-tab-button{font:inherit;padding:.5rem 1rem;border:1px solid var(--accent);background:#fff;color:var(--accent);cursor:pointer}
+.open-tab-button:disabled{opacity:.45;cursor:not-allowed}
+.visit-status,.visit-done{color:var(--muted);font-size:.9rem}
 `;
 
 const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300" role="img" aria-label="Product photograph placeholder">
@@ -521,6 +611,9 @@ export async function build({
       cfg,
     }),
   );
+
+  await write("open-tab.html", renderOpenTabPage({ t, cfg }));
+  await write("visit.html", renderVisitPage({ t, cfg }));
 
   return { variant: t.stamp, items: items.length, totalPages, outDir, written, theme: t };
 }
