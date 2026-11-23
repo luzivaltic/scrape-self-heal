@@ -46,6 +46,9 @@ export const DETAIL_ATOMS = [
  *   extra-pages           the same 30 products appended as list pages 14-16,
  *                         linked from page 13's Next; the count says 180
  *   extra-pages-unlinked  pages 14-16 exist but nothing links to them
+ *   fewer-items           the catalogue itself shrinks to its first 60 products
+ *                         (5 pages), markup unchanged — the site lists less,
+ *                         nothing is broken
  */
 export const CONTENT_VARIANTS = [
   "data-removed",
@@ -53,7 +56,11 @@ export const CONTENT_VARIANTS = [
   "hidden-category",
   "extra-pages",
   "extra-pages-unlinked",
+  "fewer-items",
 ];
+
+/** How many products the catalogue keeps under fewer-items. */
+export const FEWER_ITEMS = 60;
 
 /** The one price every product shows under price-constant. */
 export const CONSTANT_PRICE = "99.00";
@@ -110,6 +117,7 @@ export function buildTheme(variants = []) {
     dataRemoved: variants.includes("data-removed"),
     priceConstant: variants.includes("price-constant"),
     hiddenCategory: variants.includes("hidden-category"),
+    fewerItems: variants.includes("fewer-items"),
     // null = no extra pages; otherwise whether page 13 links to page 14.
     extraPagesLinked: variants.includes("extra-pages")
       ? true
@@ -619,7 +627,8 @@ export async function build({
   variants = [],
 } = {}) {
   const t = buildTheme(variants);
-  const items = JSON.parse(await readFile(dataPath, "utf8"));
+  const allItems = JSON.parse(await readFile(dataPath, "utf8"));
+  const items = t.fewerItems ? allItems.slice(0, FEWER_ITEMS) : allItems;
   const cfg = JSON.parse(await readFile(configPath, "utf8"));
   const perPage = cfg.itemsPerPage;
 

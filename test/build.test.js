@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 
-import { CONSTANT_PRICE, VARIANTS, VISIT_HOLD_MS, build, detailHref, esc, pageHref } from "../build.mjs";
+import { CONSTANT_PRICE, FEWER_ITEMS, VARIANTS, VISIT_HOLD_MS, build, detailHref, esc, pageHref } from "../build.mjs";
 
 /**
  * The four atomic detail breaks. `detail-restructured` is exactly their union,
@@ -46,7 +46,9 @@ before(async () => {
     for (const name of result.written) {
       pages.set(name, await readFile(join(outDir, name), "utf8"));
     }
-    const items = JSON.parse(await readFile(new URL("../data/items.json", import.meta.url), "utf8"));
+    const allItems = JSON.parse(await readFile(new URL("../data/items.json", import.meta.url), "utf8"));
+    // fewer-items is the one variant that shrinks the catalogue itself.
+    const items = c.variants.includes("fewer-items") ? allItems.slice(0, FEWER_ITEMS) : allItems;
     const extra = JSON.parse(await readFile(new URL("../data/clearance.json", import.meta.url), "utf8"));
     built.set(c.name, { ...result, pages, items, extra, outDir });
   }
